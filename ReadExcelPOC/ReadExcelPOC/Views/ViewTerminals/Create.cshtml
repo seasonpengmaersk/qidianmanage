@@ -1,0 +1,103 @@
+﻿@model ReadExcelPOC.Models.Terminal
+
+@{
+    ViewData["Title"] = "Create";
+}
+
+<h1>Create</h1>
+
+<h4>Terminal</h4>
+<hr />
+<div class="row">
+    <div class="col-md-4">
+        <form asp-action="Create">
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+            <div class="form-group">
+                <label asp-for="TerminalGEOID" class="control-label"></label>
+                <input asp-for="TerminalGEOID" class="form-control" />
+                <span asp-validation-for="TerminalGEOID" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="SubArea" class="control-label"></label>
+                <input asp-for="SubArea" class="form-control" />
+                <span asp-validation-for="SubArea" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="TerminalRKSTCode" class="control-label"></label>
+                <input asp-for="TerminalRKSTCode" class="form-control" />
+                <span asp-validation-for="TerminalRKSTCode" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="PortRKST" class="control-label"></label>
+                <input asp-for="PortRKST" class="form-control" />
+                <span asp-validation-for="PortRKST" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="PortGEOID" class="control-label"></label>
+                <input asp-for="PortGEOID" class="form-control" />
+                <span asp-validation-for="PortGEOID" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="TerminalName" class="control-label"></label>
+                <input asp-for="TerminalName" class="form-control" />
+                <span asp-validation-for="TerminalName" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="PortName" class="control-label"></label>
+                <input asp-for="PortName" class="form-control" />
+                <span asp-validation-for="PortName" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="ExtendField1" class="control-label"></label>
+                <input asp-for="ExtendField1" class="form-control" />
+                <span asp-validation-for="ExtendField1" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="ExtendField2" class="control-label"></label>
+                <input asp-for="ExtendField2" class="form-control" />
+                <span asp-validation-for="ExtendField2" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="ExtendField3" class="control-label"></label>
+                <input asp-for="ExtendField3" class="form-control" />
+                <span asp-validation-for="ExtendField3" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="ExtendField4" class="control-label"></label>
+                <input asp-for="ExtendField4" class="form-control" />
+                <span asp-validation-for="ExtendField4" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="ExtendField5" class="control-label"></label>
+                <input asp-for="ExtendField5" class="form-control" />
+                <span asp-validation-for="ExtendField5" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="ExtendField6" class="control-label"></label>
+                <input asp-for="ExtendField6" class="form-control" />
+                <span asp-validation-for="ExtendField6" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="ExtendField7" class="control-label"></label>
+                <input asp-for="ExtendField7" class="form-control" />
+                <span asp-validation-for="ExtendField7" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="ExtendField8" class="control-label"></label>
+                <input asp-for="ExtendField8" class="form-control" />
+                <span asp-validation-for="ExtendField8" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <input type="submit" value="Create" class="btn btn-primary" />
+            </div>
+        </form>
+    </div>
+</div>
+
+<div>
+    <a asp-action="Index">Back to List</a>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+}
