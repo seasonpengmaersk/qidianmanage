@@ -281,7 +281,7 @@ namespace QQQidian.Controllers
 
             for (int i = 0; i < maximunRetryCount; i++)
             {
-                var resultJson = await HttpHelper.HttpPostAsync(url, JsonConvert.SerializeObject(jo), "application/json", 180, null);
+                var resultJson = await HttpHelper.HttpPostAsync(url, JsonConvert.SerializeObject(jo), "application/json", 600, null);
 
                 try
                 {

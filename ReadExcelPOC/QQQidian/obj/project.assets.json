@@ -12192,11 +12192,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "D:\\Development\\Temp\\AzureCICDDemo\\JRTestRepo\\ReadExcelPOC\\QQQidian\\QQQidian.csproj",
+      "projectUniqueName": "D:\\Development\\Projects\\qidianmanage\\ReadExcelPOC\\QQQidian\\QQQidian.csproj",
       "projectName": "QQQidian",
-      "projectPath": "D:\\Development\\Temp\\AzureCICDDemo\\JRTestRepo\\ReadExcelPOC\\QQQidian\\QQQidian.csproj",
+      "projectPath": "D:\\Development\\Projects\\qidianmanage\\ReadExcelPOC\\QQQidian\\QQQidian.csproj",
       "packagesPath": "C:\\Users\\jiaro\\.nuget\\packages\\",
-      "outputPath": "D:\\Development\\Temp\\AzureCICDDemo\\JRTestRepo\\ReadExcelPOC\\QQQidian\\obj\\",
+      "outputPath": "D:\\Development\\Projects\\qidianmanage\\ReadExcelPOC\\QQQidian\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files\\dotnet\\sdk\\NuGetFallbackFolder"

@@ -13149,11 +13149,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "D:\\Development\\Temp\\AzureCICDDemo\\JRTestRepo\\ReadExcelPOC\\ReadExcelPOC\\ReadExcelPOC.csproj",
+      "projectUniqueName": "D:\\Development\\Projects\\qidianmanage\\ReadExcelPOC\\ReadExcelPOC\\ReadExcelPOC.csproj",
       "projectName": "ReadExcelPOC",
-      "projectPath": "D:\\Development\\Temp\\AzureCICDDemo\\JRTestRepo\\ReadExcelPOC\\ReadExcelPOC\\ReadExcelPOC.csproj",
+      "projectPath": "D:\\Development\\Projects\\qidianmanage\\ReadExcelPOC\\ReadExcelPOC\\ReadExcelPOC.csproj",
       "packagesPath": "C:\\Users\\jiaro\\.nuget\\packages\\",
-      "outputPath": "D:\\Development\\Temp\\AzureCICDDemo\\JRTestRepo\\ReadExcelPOC\\ReadExcelPOC\\obj\\",
+      "outputPath": "D:\\Development\\Projects\\qidianmanage\\ReadExcelPOC\\ReadExcelPOC\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files\\dotnet\\sdk\\NuGetFallbackFolder"
