@@ -7,6 +7,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
 using Microsoft.AspNetCore.Mvc;
@@ -182,6 +183,7 @@ namespace QQQidian.Controllers
                     List<Task<JObject>> tasks = new List<Task<JObject>>();
                     foreach (string cusId in customerIds)
                     {
+                        Thread.Sleep(100);
                         tasks.Add(getCustomerRunner(cusId, token, returnArray));
                         //if (retJson.Result != null)
                         //{
@@ -242,10 +244,17 @@ namespace QQQidian.Controllers
                     }
                 }
             }
+            catch (TaskCanceledException te)
+            {
+                ro.ErrorMessage = te.Message;
+                ro.Result = "Error";
+                log_.LogInformation("TaskCanceledException Occure.", te);
+            }
             catch (Exception e)
             {
                 ro.ErrorMessage = e.Message;
                 ro.Result = "Error";
+                log_.LogInformation("Exception Occure.", e);
             }
 
             log_.LogInformation("Leave getCustomerInfos");
@@ -272,7 +281,7 @@ namespace QQQidian.Controllers
 
             for (int i = 0; i < maximunRetryCount; i++)
             {
-                var resultJson = await HttpHelper.HttpPostAsync(url, JsonConvert.SerializeObject(jo), "application/json", 30, null);
+                var resultJson = await HttpHelper.HttpPostAsync(url, JsonConvert.SerializeObject(jo), "application/json", 180, null);
 
                 try
                 {
