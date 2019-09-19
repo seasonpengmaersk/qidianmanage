@@ -114,12 +114,20 @@ namespace QQQidian.Controllers
                 using (var client = new HttpClient())
                 {
                     string jsoncsvurl = "https://json-csv.com/api/getcsv";
-                    var content = new FormUrlEncodedContent(new[]
+                    var options = new[]
                     {
-                        new KeyValuePair<string, string>("email", email),
-                        new KeyValuePair<string, string>("json", ret)
-                    });
-                    var result = client.PostAsync(jsoncsvurl, content).Result;
+                                 new KeyValuePair<string, string>("email", email),
+                                 new KeyValuePair<string, string>("json", JsonConvert.SerializeObject(ret))
+                             };
+
+
+
+                    var encodedItems = options.Select(i => WebUtility.UrlEncode(i.Key) + "=" + WebUtility.UrlEncode(i.Value));
+
+                    //处理超长url的workround
+                    var encodedContent = new StringContent(String.Join("&", encodedItems), null, "application/x-www-form-urlencoded");
+
+                    var result = client.PostAsync(jsoncsvurl, encodedContent).Result;
                     string csvContent = result.Content.ReadAsStringAsync().Result;
                     System.Text.Encoding encoding = new System.Text.UTF8Encoding(true);
                     byte[] byteArray = encoding.GetBytes(csvContent);
