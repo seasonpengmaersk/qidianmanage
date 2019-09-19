@@ -117,7 +117,7 @@ namespace QQQidian.Controllers
                     var options = new[]
                     {
                                  new KeyValuePair<string, string>("email", email),
-                                 new KeyValuePair<string, string>("json", JsonConvert.SerializeObject(ret))
+                                 new KeyValuePair<string, string>("json", ret)
                              };
 
 
