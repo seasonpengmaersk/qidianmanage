@@ -32,7 +32,7 @@ namespace QQQidian.Controllers
 
         public IActionResult Index()
         {
-            ViewBag.defaultDT = DateTime.Now.ToString("yyyy-MM-dd");
+            ViewBag.defaultDT = DateTime.Now.AddDays(-1).ToString("yyyy-MM-dd");
             return View();
         }
 
