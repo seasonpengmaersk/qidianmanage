@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Data;
 using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
@@ -28,6 +29,8 @@ namespace QQQidian.Controllers
         {
             log_ = logger;
         }
+
+        private string json_csv_account = "season.peng@gukodigital.com";
 
 
         public IActionResult Index()
@@ -110,7 +113,7 @@ namespace QQQidian.Controllers
                 ro.ResultObject = ret;
 
 
-                string email = "jiarong_xie@outlook.com";
+                string email = json_csv_account;
                 using (var client = new HttpClient())
                 {
                     string jsoncsvurl = "https://json-csv.com/api/getcsv";
@@ -205,7 +208,7 @@ namespace QQQidian.Controllers
                      }, TaskContinuationOptions.OnlyOnRanToCompletion);
 
 
-                    string email = "jiarong_xie@outlook.com";
+                    string email = json_csv_account;
                     using (var client = new HttpClient())
                     {
                         string jsoncsvurl = "https://json-csv.com/api/getcsv";
@@ -267,6 +270,84 @@ namespace QQQidian.Controllers
 
             log_.LogInformation("Leave getCustomerInfos");
             return Ok(ro);
+        }
+
+        //
+        [HttpGet("test")]
+        public async Task<IActionResult> Json2Csv(string jsonString)
+        {
+            string csvContent = "";
+            jsonString = @"{
+                      'channel': {
+                        'title': 'James Newton-King',
+                        'link': 'http://james.newtonking.com',
+                        'description': 'James Newton-King\'s blog.',
+                        'item': [
+                          {
+                            'title': 'Json.NET 1.3 + New license + Now on CodePlex',
+                            'description': 'Announcing the release of Json.NET 1.3, the MIT license and the source on CodePlex',
+                            'link': 'http://james.newtonking.com/projects/json-net.aspx',
+                            'categories': [
+                              'Json.NET',
+                              'CodePlex'
+                            ]
+                          },
+                          {
+                            'title': 'LINQ to JSON beta',
+                            'description': 'Announcing LINQ to JSON',
+                            'link': 'http://james.newtonking.com/projects/json-net.aspx',
+                            'categories': [
+                              'Json.NET',
+                              'LINQ'
+                            ]
+                          }
+                        ]
+                      }
+                    }";
+
+            JObject rss = JObject.Parse(jsonString);
+
+            JEnumerable<JToken> je = rss.Children();
+            IList<string> stringList = new List<string>();
+            foreach (JToken jt in je)
+            {
+                getChildValue(jt, stringList);
+            }
+
+
+
+
+
+
+            System.Text.Encoding encoding = new System.Text.UTF8Encoding(true);
+            byte[] byteArray = encoding.GetBytes(csvContent);
+            string fileName = String.Format("cusInfoJson_{0}.csv", string.Format("{0:yyyyMMddHHmmss}", DateTime.Now));
+            fileName = HttpUtility.UrlEncode(fileName, Encoding.GetEncoding("UTF-8"));
+            var data = Encoding.UTF8.GetPreamble().Concat(byteArray).ToArray();
+
+            log_.LogInformation("End getCustomerInfos");
+            //return File(data, "application/csv", fileName);
+
+            return Ok(csvContent);
+        }
+
+        private void getChildValue(JToken j,IList<string> retList)
+        {
+            
+            JEnumerable<JToken> je = j.Children();
+            if (je.Count<JToken>() > 0)
+            {
+                foreach(JToken jt in je)
+                {
+                    getChildValue(jt,retList);
+                    Console.WriteLine("HasChildren.I am " + jt.Path);
+                }
+            }
+            else
+            {
+               retList.Add(j.Path +":" + j.CreateReader().ReadAsString());
+            }
+            
         }
 
 
