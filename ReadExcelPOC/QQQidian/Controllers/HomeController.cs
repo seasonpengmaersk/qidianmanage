@@ -154,10 +154,17 @@ namespace QQQidian.Controllers
 
         }
 
+        [HttpGet("accInfo")]
+        public IActionResult getAccInfos()
+        {
+            return Ok(json_csv_account);
+        }
+
         [HttpGet("cus")]
         public async Task<IActionResult> getCustomerInfos()
         {
             log_.LogInformation("Enter getCustomerInfos");
+            log_.LogInformation("using account is " + json_csv_account);
             ResponseObject ro = new ResponseObject();
             try
             {
