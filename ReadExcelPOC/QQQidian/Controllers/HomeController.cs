@@ -8,6 +8,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
@@ -160,6 +161,7 @@ namespace QQQidian.Controllers
             return Ok(json_csv_account);
         }
 
+        //GetCusInfo
         [HttpGet("cus")]
         public async Task<IActionResult> getCustomerInfos()
         {
@@ -313,16 +315,14 @@ namespace QQQidian.Controllers
                     }";
 
             JObject rss = JObject.Parse(jsonString);
+            DataTable dt = new DataTable();
 
             JEnumerable<JToken> je = rss.Children();
             IList<string> stringList = new List<string>();
             foreach (JToken jt in je)
             {
-                getChildValue(jt, stringList);
+                getChildValue(jt, dt);
             }
-
-
-
 
 
 
@@ -338,23 +338,32 @@ namespace QQQidian.Controllers
             return Ok(csvContent);
         }
 
-        private void getChildValue(JToken j,IList<string> retList)
+        private void getChildValue(JToken j, DataTable dt)
         {
-            
+
             JEnumerable<JToken> je = j.Children();
             if (je.Count<JToken>() > 0)
             {
-                foreach(JToken jt in je)
+                foreach (JToken jt in je)
                 {
-                    getChildValue(jt,retList);
+                    getChildValue(jt, dt);
                     Console.WriteLine("HasChildren.I am " + jt.Path);
                 }
             }
             else
             {
-               retList.Add(j.Path +":" + j.CreateReader().ReadAsString());
+                //retList.Add(j.Path +":" + j.CreateReader().ReadAsString());
+                Regex reg = new Regex("\\[[0-9]*\\]");
+                String columnName = reg.Replace(j.Path, "");
+                if (!dt.Columns.Contains(columnName))
+                {
+                    dt.Columns.Add(j.Path);
+                }
+                DataRow dr = dt.NewRow();
+                dr[columnName] = j.CreateReader().ReadAsString();
+
             }
-            
+
         }
 
 
@@ -403,6 +412,167 @@ namespace QQQidian.Controllers
 
             queue.Enqueue(jObject);
             log_.LogDebug(String.Format("End getCustomerRunner.CustomerId = {0}", CustomerId));
+            return jObject;
+        }
+
+        //GetCusInfo
+        [HttpGet("owner")]
+        public async Task<IActionResult> getOwnerInfos()
+        {
+            log_.LogInformation("Enter getOwnerInfos");
+            log_.LogInformation("using account is " + json_csv_account);
+            ResponseObject ro = new ResponseObject();
+            try
+            {
+                string url = "https://api.qidian.qq.com/cgi-bin/token?grant_type=client_credential&appid=202010648&secret=GRO7brrdHhtrb9Te";
+                string tokenJson = await HttpHelper.HttpGetAsync(url, null);
+                Dictionary<string, string> tokenDic = JsonConvert.DeserializeObject<Dictionary<string, string>>(tokenJson);
+                string token = tokenDic["access_token"];
+
+                if (String.IsNullOrEmpty(token))
+                {
+                    ro.Result = "Error";
+                    ro.ErrorMessage = "token is null or empty.";
+                }
+                else
+                {
+                    //get All cusomterId 
+                    url = "https://api.qidian.qq.com/cgi-bin/cust/cust_info/getCustList?next_custid=&access_token=" + token;
+                    string customersJson = await HttpHelper.HttpGetAsync(url, null);
+                    var CustomersResultDefinition = new { total = "", count = "", data = new { cust_id = new List<string>() }, next_custid = "" };
+                    var retJsonObject = JsonConvert.DeserializeAnonymousType(customersJson, CustomersResultDefinition);
+
+                    if (retJsonObject == null || retJsonObject.data == null || retJsonObject.data.cust_id == null)
+                    {
+                        ro.Result = "Error";
+                        ro.ErrorMessage = "CustomersResultDefinition == null || CustomersResultDefinition.data || CustomersResultDefinition.data.cust_id == null";
+                        ro.ResultObject = retJsonObject;
+                        return Ok(ro);
+                    }
+
+                    List<string> customerIds = retJsonObject.data.cust_id;
+
+                    ConcurrentQueue<JObject> returnArray = new ConcurrentQueue<JObject>();
+                    log_.LogDebug("Before get owner info reccurlly");
+                    List<Task<JObject>> tasks = new List<Task<JObject>>();
+                    foreach (string cusId in customerIds)
+                    {
+                        Thread.Sleep(100);
+                        tasks.Add(getOwnerRunner(cusId, token, returnArray));
+                        //if (retJson.Result != null)
+                        //{
+                        //    returnArray.Add(retJson.Result);
+                        //}
+                    }
+
+                    await Task.WhenAll(tasks).ContinueWith(p =>
+                    {
+                        log_.LogDebug("After get owner info reccurlly");
+                    }, TaskContinuationOptions.OnlyOnRanToCompletion);
+
+
+                    string email = json_csv_account;
+                    using (var client = new HttpClient())
+                    {
+                        string jsoncsvurl = "https://json-csv.com/api/getcsv";
+
+                        //超长url 不能用FormUrlEncodedContent
+                        //var content = new FormUrlEncodedContent(new[]
+                        //{
+                        //    new KeyValuePair<string, string>("email", email),
+                        //    new KeyValuePair<string, string>("json", JsonConvert.SerializeObject(returnArray))
+                        //});
+
+                        var options = new[]
+                        {
+                                 new KeyValuePair<string, string>("email", email),
+                                 new KeyValuePair<string, string>("json", JsonConvert.SerializeObject(returnArray))
+                             };
+
+
+
+                        var encodedItems = options.Select(i => WebUtility.UrlEncode(i.Key) + "=" + WebUtility.UrlEncode(i.Value));
+
+                        //处理超长url的workround
+                        var encodedContent = new StringContent(String.Join("&", encodedItems), null, "application/x-www-form-urlencoded");
+
+                        var result = client.PostAsync(jsoncsvurl, encodedContent).Result;
+                        string csvContent = result.Content.ReadAsStringAsync().Result;
+
+                        if (csvContent.IndexOf("A problem occured") != -1)
+                        {
+                            ro.ErrorMessage = csvContent;
+                            ro.Result = "Error";
+                        }
+                        else
+                        {
+                            System.Text.Encoding encoding = new System.Text.UTF8Encoding(true);
+                            byte[] byteArray = encoding.GetBytes(csvContent);
+                            string fileName = String.Format("ownerInfoJson_{0}.csv", string.Format("{0:yyyyMMddHHmmss}", DateTime.Now));
+                            fileName = HttpUtility.UrlEncode(fileName, Encoding.GetEncoding("UTF-8"));
+                            var data = Encoding.UTF8.GetPreamble().Concat(byteArray).ToArray();
+
+                            log_.LogInformation("End getOwnerInfos");
+                            return File(data, "application/csv", fileName);
+                        }
+                    }
+                }
+            }
+            catch (TaskCanceledException te)
+            {
+                ro.ErrorMessage = te.Message;
+                ro.Result = "Error";
+                log_.LogInformation("TaskCanceledException Occure.", te);
+            }
+            catch (Exception e)
+            {
+                ro.ErrorMessage = e.Message;
+                ro.Result = "Error";
+                log_.LogInformation("Exception Occure.", e);
+            }
+
+            log_.LogInformation("Leave getOwnerInfos");
+            return Ok(ro);
+        }
+
+
+        private async Task<JObject> getOwnerRunner(string OwnerID, string token, ConcurrentQueue<JObject> queue)
+        {
+            log_.LogDebug(String.Format("Start getOwnerRunner.OwnerId = {0}", OwnerID));
+            string urlbase = "https://api.qidian.qq.com/cgi-bin/cust/cust_info/getSingCustBusiInfo?cust_id={0}&access_token={1}";
+            string url = String.Format(urlbase, OwnerID,token);
+
+            int maximunRetryCount = 1;
+            JObject jObject = null;
+
+            for (int i = 0; i < maximunRetryCount; i++)
+            {
+                var resultJson = await HttpHelper.HttpPostAsync(url, null, "application/json", 600, null);
+
+                try
+                {
+                    jObject = JsonConvert.DeserializeObject<JObject>(resultJson);
+                    JToken value = "";
+                    if (jObject.TryGetValue("errcode", out value))
+                    {
+                        log_.LogWarning(String.Format("Fail to get the Info of this Owner.OwnerId = {0}.Retry Count = {1}", OwnerID, i));
+                        jObject = new JObject();
+                        jObject.Add("cust_id", OwnerID);
+                    }
+                    else
+                    {
+                        break;
+                    }
+
+                }
+                catch (Exception e)
+                {
+                    log_.LogError("Get OwnerInfo failed.OwnerId=" + OwnerID, e);
+                }
+            }
+
+            queue.Enqueue(jObject);
+            log_.LogDebug(String.Format("End getOwnerRunner.OwnerId = {0}", OwnerID));
             return jObject;
         }
     }
