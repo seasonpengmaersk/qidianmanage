@@ -183,20 +183,47 @@ namespace QQQidian.Controllers
                 else
                 {
                     //get All cusomterId 
-                    url = "https://api.qidian.qq.com/cgi-bin/cust/cust_info/getCustList?next_custid=&access_token=" + token;
-                    string customersJson = await HttpHelper.HttpGetAsync(url, null);
-                    var CustomersResultDefinition = new { total = "", count = "", data = new { cust_id = new List<string>() }, next_custid = "" };
-                    var retJsonObject = JsonConvert.DeserializeAnonymousType(customersJson, CustomersResultDefinition);
+                    List<string> customerIds = new List<string>();
+                    List<string> tempIds = new List<string>();
+                    string nextCusId = "";
+                    int totalCount = 0;
+                    do
+                    {
+                        url = "https://api.qidian.qq.com/cgi-bin/cust/cust_info/getCustList?next_custid=" + nextCusId + "&access_token=" + token;
+                        string customersJson = await HttpHelper.HttpGetAsync(url, null);
+                        var CustomersResultDefinition = new { total = "", count = "", data = new { cust_id = new List<string>() }, next_custid = "" };
+                        var retJsonObject = JsonConvert.DeserializeAnonymousType(customersJson, CustomersResultDefinition);
 
-                    if (retJsonObject == null || retJsonObject.data == null || retJsonObject.data.cust_id == null)
+
+                        if (retJsonObject == null || retJsonObject.data == null || retJsonObject.data.cust_id == null)
+                        {
+                            ro.Result = "Error";
+                            ro.ErrorMessage = "CustomersResultDefinition == null || CustomersResultDefinition.data || CustomersResultDefinition.data.cust_id == null";
+                            ro.ResultObject = retJsonObject;
+                            return Ok(ro);
+                        }
+
+                        nextCusId = retJsonObject.next_custid;
+                        int tempCount = 0;
+                        if(!int.TryParse(retJsonObject.count,out tempCount))
+                        {
+                            ro.Result = "Error";
+                            ro.ErrorMessage = "Total Count is not a integer.";
+                            return Ok(ro);
+                        }
+
+                        totalCount = totalCount + tempCount;
+
+                        tempIds = retJsonObject.data.cust_id;
+                        customerIds.AddRange(tempIds);
+                    } while (!String.IsNullOrEmpty(nextCusId));
+
+                    if(totalCount!= customerIds.Count)
                     {
                         ro.Result = "Error";
-                        ro.ErrorMessage = "CustomersResultDefinition == null || CustomersResultDefinition.data || CustomersResultDefinition.data.cust_id == null";
-                        ro.ResultObject = retJsonObject;
+                        ro.ErrorMessage = "Total Count not tally with the records count in the result object.";
                         return Ok(ro);
                     }
-
-                    List<string> customerIds = retJsonObject.data.cust_id;
 
                     ConcurrentQueue<JObject> returnArray = new ConcurrentQueue<JObject>();
                     log_.LogDebug("Before get customers info reccurlly");
@@ -436,21 +463,47 @@ namespace QQQidian.Controllers
                 }
                 else
                 {
-                    //get All cusomterId 
-                    url = "https://api.qidian.qq.com/cgi-bin/cust/cust_info/getCustList?next_custid=&access_token=" + token;
-                    string customersJson = await HttpHelper.HttpGetAsync(url, null);
-                    var CustomersResultDefinition = new { total = "", count = "", data = new { cust_id = new List<string>() }, next_custid = "" };
-                    var retJsonObject = JsonConvert.DeserializeAnonymousType(customersJson, CustomersResultDefinition);
+                    List<string> customerIds = new List<string>();
+                    List<string> tempIds = new List<string>();
+                    string nextCusId = "";
+                    int totalCount = 0;
+                    do
+                    {
+                        //get All cusomterId 
+                        url = "https://api.qidian.qq.com/cgi-bin/cust/cust_info/getCustList?next_custid=" + nextCusId + "&access_token=" + token;
+                        string customersJson = await HttpHelper.HttpGetAsync(url, null);
+                        var CustomersResultDefinition = new { total = "", count = "", data = new { cust_id = new List<string>() }, next_custid = "" };
+                        var retJsonObject = JsonConvert.DeserializeAnonymousType(customersJson, CustomersResultDefinition);
 
-                    if (retJsonObject == null || retJsonObject.data == null || retJsonObject.data.cust_id == null)
+                        if (retJsonObject == null || retJsonObject.data == null || retJsonObject.data.cust_id == null)
+                        {
+                            ro.Result = "Error";
+                            ro.ErrorMessage = "CustomersResultDefinition == null || CustomersResultDefinition.data || CustomersResultDefinition.data.cust_id == null";
+                            ro.ResultObject = retJsonObject;
+                            return Ok(ro);
+                        }
+
+                        nextCusId = retJsonObject.next_custid;
+                        int tempCount = 0;
+                        if (!int.TryParse(retJsonObject.count, out tempCount))
+                        {
+                            ro.Result = "Error";
+                            ro.ErrorMessage = "Total Count is not a integer.";
+                            return Ok(ro);
+                        }
+
+                        totalCount = totalCount + tempCount;
+
+                        tempIds = retJsonObject.data.cust_id;
+                        customerIds.AddRange(tempIds);
+                    } while (!String.IsNullOrEmpty(nextCusId));
+
+                    if (totalCount != customerIds.Count)
                     {
                         ro.Result = "Error";
-                        ro.ErrorMessage = "CustomersResultDefinition == null || CustomersResultDefinition.data || CustomersResultDefinition.data.cust_id == null";
-                        ro.ResultObject = retJsonObject;
+                        ro.ErrorMessage = "Total Count not tally with the records count in the result object.";
                         return Ok(ro);
                     }
-
-                    List<string> customerIds = retJsonObject.data.cust_id;
 
                     ConcurrentQueue<JObject> returnArray = new ConcurrentQueue<JObject>();
                     log_.LogDebug("Before get owner info reccurlly");
