@@ -25,9 +25,9 @@ namespace QQQidian.Controllers
     public class HomeController : Controller
     {
         private ILogger<HomeController> log_;
-        public HttpHelper httpHelper_ { get; private set; }
+        public IHttpHelper httpHelper_ { get; private set; }
 
-        public HomeController(ILogger<HomeController> logger, HttpHelper helper)
+        public HomeController(ILogger<HomeController> logger, IHttpHelper helper)
         {
             log_ = logger;
             httpHelper_ = helper;
