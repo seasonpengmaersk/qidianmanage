@@ -25,10 +25,12 @@ namespace QQQidian.Controllers
     public class HomeController : Controller
     {
         private ILogger<HomeController> log_;
+        public HttpHelper httpHelper_ { get; private set; }
 
-        public HomeController(ILogger<HomeController> logger)
+        public HomeController(ILogger<HomeController> logger, HttpHelper helper)
         {
             log_ = logger;
+            httpHelper_ = helper;
         }
 
         private string json_csv_account = "season.peng@gukodigital.com";
@@ -78,7 +80,7 @@ namespace QQQidian.Controllers
             try
             {
                 string url = "https://api.qidian.qq.com/cgi-bin/token?grant_type=client_credential&appid=202010648&secret=GRO7brrdHhtrb9Te";
-                string tokenJson = await HttpHelper.HttpGetAsync(url, null);
+                string tokenJson = await httpHelper_.HttpGetAsync(url, null);
                 Dictionary<string, string> tokenDic = JsonConvert.DeserializeObject<Dictionary<string, string>>(tokenJson);
                 string token = tokenDic["access_token"];
 
@@ -94,7 +96,7 @@ namespace QQQidian.Controllers
                 reqBody.date = queryDatetime;
 
 
-                string ret = await HttpHelper.HttpPostAsync(tokenurl, JsonConvert.SerializeObject(reqBody), "application/json", 30, null);
+                string ret = await httpHelper_.HttpPostAsync(tokenurl, JsonConvert.SerializeObject(reqBody), "application/json", 30, null);
 
                 //Dictionary<string, string> retDic = JsonConvert.DeserializeObject<Dictionary<string, string>>(ret);
 
@@ -171,7 +173,7 @@ namespace QQQidian.Controllers
             try
             {
                 string url = "https://api.qidian.qq.com/cgi-bin/token?grant_type=client_credential&appid=202010648&secret=GRO7brrdHhtrb9Te";
-                string tokenJson = await HttpHelper.HttpGetAsync(url, null);
+                string tokenJson = await httpHelper_.HttpGetAsync(url, null);
                 Dictionary<string, string> tokenDic = JsonConvert.DeserializeObject<Dictionary<string, string>>(tokenJson);
                 string token = tokenDic["access_token"];
 
@@ -190,7 +192,7 @@ namespace QQQidian.Controllers
                     do
                     {
                         url = "https://api.qidian.qq.com/cgi-bin/cust/cust_info/getCustList?next_custid=" + nextCusId + "&access_token=" + token;
-                        string customersJson = await HttpHelper.HttpGetAsync(url, null);
+                        string customersJson = await httpHelper_.HttpGetAsync(url, null);
                         var CustomersResultDefinition = new { total = "", count = "", data = new { cust_id = new List<string>() }, next_custid = "" };
                         var retJsonObject = JsonConvert.DeserializeAnonymousType(customersJson, CustomersResultDefinition);
 
@@ -413,7 +415,7 @@ namespace QQQidian.Controllers
 
             for (int i = 0; i < maximunRetryCount; i++)
             {
-                var resultJson = await HttpHelper.HttpPostAsync(url, JsonConvert.SerializeObject(jo), "application/json", 600, null);
+                var resultJson = await httpHelper_.HttpPostAsync(url, JsonConvert.SerializeObject(jo), "application/json", 600, null);
 
                 try
                 {
@@ -452,7 +454,7 @@ namespace QQQidian.Controllers
             try
             {
                 string url = "https://api.qidian.qq.com/cgi-bin/token?grant_type=client_credential&appid=202010648&secret=GRO7brrdHhtrb9Te";
-                string tokenJson = await HttpHelper.HttpGetAsync(url, null);
+                string tokenJson = await httpHelper_.HttpGetAsync(url, null);
                 Dictionary<string, string> tokenDic = JsonConvert.DeserializeObject<Dictionary<string, string>>(tokenJson);
                 string token = tokenDic["access_token"];
 
@@ -471,7 +473,7 @@ namespace QQQidian.Controllers
                     {
                         //get All cusomterId 
                         url = "https://api.qidian.qq.com/cgi-bin/cust/cust_info/getCustList?next_custid=" + nextCusId + "&access_token=" + token;
-                        string customersJson = await HttpHelper.HttpGetAsync(url, null);
+                        string customersJson = await httpHelper_.HttpGetAsync(url, null);
                         var CustomersResultDefinition = new { total = "", count = "", data = new { cust_id = new List<string>() }, next_custid = "" };
                         var retJsonObject = JsonConvert.DeserializeAnonymousType(customersJson, CustomersResultDefinition);
 
@@ -600,7 +602,7 @@ namespace QQQidian.Controllers
 
             for (int i = 0; i < maximunRetryCount; i++)
             {
-                var resultJson = await HttpHelper.HttpPostAsync(url, null, "application/json", 600, null);
+                var resultJson = await httpHelper_.HttpPostAsync(url, null, "application/json", 600, null);
 
                 try
                 {
