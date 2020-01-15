@@ -232,7 +232,6 @@ namespace QQQidian.Controllers
                     List<Task<JObject>> tasks = new List<Task<JObject>>();
                     foreach (string cusId in customerIds)
                     {
-                        Thread.Sleep(100);
                         tasks.Add(getCustomerRunner(cusId, token, returnArray));
                         //if (retJson.Result != null)
                         //{
@@ -398,6 +397,9 @@ namespace QQQidian.Controllers
 
         private async Task<JObject> getCustomerRunner(string CustomerId, string token, ConcurrentQueue<JObject> queue)
         {
+            Random r = new Random();
+            int randomSleepTime = r.Next(1, 5);
+            Thread.Sleep(randomSleepTime*100);
             log_.LogDebug(String.Format("Start getCustomerRunner.CustomerId = {0}", CustomerId));
             string url = "https://api.qidian.qq.com/cgi-bin/cust/cust_info/getSingCustBaseInfo?access_token=" + token;
             JObject jo = new JObject();
@@ -410,7 +412,7 @@ namespace QQQidian.Controllers
 
             jo.Add("data", ja);
 
-            int maximunRetryCount = 2;
+            int maximunRetryCount = 1;
             JObject jObject = null;
 
             for (int i = 0; i < maximunRetryCount; i++)
