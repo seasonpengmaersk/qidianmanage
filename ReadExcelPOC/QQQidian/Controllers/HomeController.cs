@@ -415,10 +415,10 @@ namespace QQQidian.Controllers
 
             for (int i = 0; i < maximunRetryCount; i++)
             {
-                var resultJson = await httpHelper_.HttpPostAsync(url, JsonConvert.SerializeObject(jo), "application/json", 600, null);
 
                 try
                 {
+                    var resultJson = await httpHelper_.HttpPostAsync(url, JsonConvert.SerializeObject(jo), "application/json", 600, null);
                     jObject = JsonConvert.DeserializeObject<JObject>(resultJson);
                     JToken value = "";
                     if (jObject.TryGetValue("errcode", out value))
