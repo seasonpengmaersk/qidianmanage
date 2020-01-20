@@ -404,7 +404,7 @@ namespace QQQidian.Controllers
         {
             Random r = new Random();
             int randomSleepTime = r.Next(1, 5);
-            Thread.Sleep(randomSleepTime * 100);
+            Thread.Sleep(randomSleepTime * 500);
             log_.LogInformation(String.Format("Start getCustomerRunner.CustomerId = {0}", CustomerId));
             string url = "https://api.qidian.qq.com/cgi-bin/cust/cust_info/getSingCustBaseInfo?access_token=" + token;
             JObject jo = new JObject();
@@ -438,6 +438,14 @@ namespace QQQidian.Controllers
                     {
                         break;
                     }
+                    if (jObject == null||jObject.GetValue("cust_id")==null)
+                    {
+                        log_.LogWarning(String.Format("The result message is null.CustomerId = {0}", CustomerId));
+                    }
+                    else
+                    {
+                        log_.LogDebug(String.Format("Response Message is:{0}", jObject.ToString()));
+                    }
 
                 }
                 catch (Exception e)
@@ -445,14 +453,7 @@ namespace QQQidian.Controllers
                     log_.LogError("Get CustomerInfo failed.CustomerId=" + CustomerId, e);
                 }
             }
-            if (jObject == null)
-            {
-                log_.LogWarning(String.Format("The result message is null.CustomerId = {0}",CustomerId));
-            }
-            else
-            {
-                log_.LogDebug(String.Format("Response Message is:{0}",jObject.ToString()));
-            }
+
             log_.LogDebug(String.Format("End getCustomerRunner.CustomerId = {0}", CustomerId));
             return jObject;
         }
@@ -611,6 +612,9 @@ namespace QQQidian.Controllers
 
         private async Task<JObject> getOwnerRunner(string OwnerID, string token)
         {
+            Random r = new Random();
+            int randomSleepTime = r.Next(1, 5);
+            Thread.Sleep(randomSleepTime * 500);
             log_.LogDebug(String.Format("Start getOwnerRunner.OwnerId = {0}", OwnerID));
             string urlbase = "https://api.qidian.qq.com/cgi-bin/cust/cust_info/getSingCustBusiInfo?cust_id={0}&access_token={1}";
             string url = String.Format(urlbase, OwnerID,token);
@@ -620,10 +624,9 @@ namespace QQQidian.Controllers
 
             for (int i = 0; i < maximunRetryCount; i++)
             {
-                var resultJson = await httpHelper_.HttpPostAsync(url, null, "application/json", 600, null);
-
                 try
                 {
+                    var resultJson = await httpHelper_.HttpPostAsync(url, null, "application/json", 600, null);
                     jObject = JsonConvert.DeserializeObject<JObject>(resultJson);
                     JToken value = "";
                     if (jObject.TryGetValue("errcode", out value))
