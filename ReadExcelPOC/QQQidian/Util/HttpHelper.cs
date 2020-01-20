@@ -163,7 +163,7 @@ namespace ReadExcelPOC.Util
             {
                 postData = postData ?? "";
                 HttpClient client = _httpClientFactory.CreateClient();
-
+                client.Timeout = new TimeSpan(0, 0, timeOut);
                 if (headers != null)
                 {
                     foreach (var header in headers)

@@ -19,6 +19,8 @@ using Newtonsoft.Json.Linq;
 using QQQidian.Models;
 using ReadExcelPOC.Models;
 using ReadExcelPOC.Util.Common;
+using System.Threading.Tasks;
+using QQQidian.Util;
 
 namespace QQQidian.Controllers
 {
@@ -227,12 +229,23 @@ namespace QQQidian.Controllers
                         return Ok(ro);
                     }
 
+                    log_.LogInformation("Total Customer Count=" + customerIds.Count);
+                    
                     ConcurrentQueue<JObject> returnArray = new ConcurrentQueue<JObject>();
-                    log_.LogDebug("Before get customers info reccurlly");
-                    List<Task<JObject>> tasks = new List<Task<JObject>>();
+                    log_.LogDebug("Before get customers info reccurlly.");
+                    var tasks = new List<Task>();
+                    LimitedConcurrencyLevelTaskScheduler ts = new LimitedConcurrencyLevelTaskScheduler(100);
+                    TaskFactory factory = new TaskFactory();
+                    int idx = 0;
                     foreach (string cusId in customerIds)
                     {
-                        tasks.Add(getCustomerRunner(cusId, token, returnArray));
+                        idx++;
+                        log_.LogDebug(String.Format("Start task {0}.CusId = {1}",idx,cusId));
+                        tasks.Add(Task.Run(async () => {
+                            var r = await getCustomerRunner(cusId, token);
+                            returnArray.Enqueue(r);
+                            return r;
+                        }));
                         //if (retJson.Result != null)
                         //{
                         //    returnArray.Add(retJson.Result);
@@ -249,13 +262,6 @@ namespace QQQidian.Controllers
                     using (var client = new HttpClient())
                     {
                         string jsoncsvurl = "https://json-csv.com/api/getcsv";
-
-                        //超长url 不能用FormUrlEncodedContent
-                        //var content = new FormUrlEncodedContent(new[]
-                        //{
-                        //    new KeyValuePair<string, string>("email", email),
-                        //    new KeyValuePair<string, string>("json", JsonConvert.SerializeObject(returnArray))
-                        //});
 
                         var options = new[]
                         {
@@ -394,13 +400,12 @@ namespace QQQidian.Controllers
 
         }
 
-
-        private async Task<JObject> getCustomerRunner(string CustomerId, string token, ConcurrentQueue<JObject> queue)
+        private async Task<JObject> getCustomerRunner(string CustomerId, string token)
         {
             Random r = new Random();
             int randomSleepTime = r.Next(1, 5);
-            Thread.Sleep(randomSleepTime*100);
-            log_.LogDebug(String.Format("Start getCustomerRunner.CustomerId = {0}", CustomerId));
+            Thread.Sleep(randomSleepTime * 100);
+            log_.LogInformation(String.Format("Start getCustomerRunner.CustomerId = {0}", CustomerId));
             string url = "https://api.qidian.qq.com/cgi-bin/cust/cust_info/getSingCustBaseInfo?access_token=" + token;
             JObject jo = new JObject();
             JArray ja = new JArray();
@@ -440,8 +445,14 @@ namespace QQQidian.Controllers
                     log_.LogError("Get CustomerInfo failed.CustomerId=" + CustomerId, e);
                 }
             }
-
-            queue.Enqueue(jObject);
+            if (jObject == null)
+            {
+                log_.LogWarning(String.Format("The result message is null.CustomerId = {0}",CustomerId));
+            }
+            else
+            {
+                log_.LogDebug(String.Format("Response Message is:{0}",jObject.ToString()));
+            }
             log_.LogDebug(String.Format("End getCustomerRunner.CustomerId = {0}", CustomerId));
             return jObject;
         }
@@ -511,11 +522,16 @@ namespace QQQidian.Controllers
 
                     ConcurrentQueue<JObject> returnArray = new ConcurrentQueue<JObject>();
                     log_.LogDebug("Before get owner info reccurlly");
-                    List<Task<JObject>> tasks = new List<Task<JObject>>();
+                    List<Task> tasks = new List<Task>();
                     foreach (string cusId in customerIds)
                     {
                         Thread.Sleep(100);
-                        tasks.Add(getOwnerRunner(cusId, token, returnArray));
+                        tasks.Add(Task.Run(async () =>
+                        {
+                            var r = await getOwnerRunner(cusId, token);
+                            returnArray.Enqueue(r);
+                            return r;
+                        }));
                         //if (retJson.Result != null)
                         //{
                         //    returnArray.Add(retJson.Result);
@@ -593,7 +609,7 @@ namespace QQQidian.Controllers
         }
 
 
-        private async Task<JObject> getOwnerRunner(string OwnerID, string token, ConcurrentQueue<JObject> queue)
+        private async Task<JObject> getOwnerRunner(string OwnerID, string token)
         {
             log_.LogDebug(String.Format("Start getOwnerRunner.OwnerId = {0}", OwnerID));
             string urlbase = "https://api.qidian.qq.com/cgi-bin/cust/cust_info/getSingCustBusiInfo?cust_id={0}&access_token={1}";
@@ -627,8 +643,7 @@ namespace QQQidian.Controllers
                     log_.LogError("Get OwnerInfo failed.OwnerId=" + OwnerID, e);
                 }
             }
-
-            queue.Enqueue(jObject);
+            
             log_.LogDebug(String.Format("End getOwnerRunner.OwnerId = {0}", OwnerID));
             return jObject;
         }
