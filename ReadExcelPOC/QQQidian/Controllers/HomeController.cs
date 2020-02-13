@@ -151,7 +151,7 @@ namespace QQQidian.Controllers
             }
             catch (Exception e)
             {
-                log_.LogError("Exception occur", e);
+                log_.LogError(e,"Exception occur", null);
                 ro.Result = "Error";
                 ro.ErrorMessage = "Fail to get token.Due to" + e.Message;
                 return Ok(ro);
@@ -349,13 +349,13 @@ namespace QQQidian.Controllers
             {
                 ro.ErrorMessage = te.Message;
                 ro.Result = "Error";
-                log_.LogInformation("TaskCanceledException Occure.", te);
+                log_.LogError(te,"TaskCanceledException Occure.", null);
             }
             catch (Exception e)
             {
                 ro.ErrorMessage = e.Message;
                 ro.Result = "Error";
-                log_.LogInformation("Exception Occure.", e);
+                log_.LogError(e,"Exception Occure.", null);
             }
             stopwatch.Stop();
             log_.LogInformation("Leave getCustomerInfos.TimeElaps=" + stopwatch.Elapsed.TotalSeconds);
@@ -499,13 +499,13 @@ namespace QQQidian.Controllers
             {
                 ro.ErrorMessage = te.Message;
                 ro.Result = "Error";
-                log_.LogInformation("TaskCanceledException Occure.", te);
+                log_.LogError(te,"TaskCanceledException Occure.", null);
             }
             catch (Exception e)
             {
                 ro.ErrorMessage = e.Message;
                 ro.Result = "Error";
-                log_.LogInformation("Exception Occure.", e);
+                log_.LogError(e,"Exception Occure.", null);
             }
             stopwatch.Stop();
             log_.LogInformation("Leave getCustomerInfos.TimeElaps=" + stopwatch.Elapsed.TotalSeconds);
@@ -627,7 +627,7 @@ namespace QQQidian.Controllers
                     JToken value = "";
                     if (jObject.TryGetValue("errcode", out value))
                     {
-                        log_.LogWarning(String.Format("Fail to get the Info of this Customer.CustomerId = {0}.Retry Count = {1}", CustomerId, i));
+                        log_.LogWarning(String.Format("Fail to get the Info of this Customer.ResultJson is {0}.CustomerId = {1}.Retry Count = {2}", resultJson,CustomerId, i));
                         jObject = new JObject();
                         jObject.Add("cust_id", CustomerId);
                     }
@@ -793,13 +793,13 @@ namespace QQQidian.Controllers
             {
                 ro.ErrorMessage = te.Message;
                 ro.Result = "Error";
-                log_.LogInformation("TaskCanceledException Occure.", te);
+                log_.LogError(te,"TaskCanceledException Occure.", null);
             }
             catch (Exception e)
             {
                 ro.ErrorMessage = e.Message;
                 ro.Result = "Error";
-                log_.LogInformation("Exception Occure.", e);
+                log_.LogError(e,"Exception Occure.", null);
             }
 
             log_.LogInformation("Leave getOwnerInfos");
