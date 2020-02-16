@@ -82,10 +82,7 @@ namespace QQQidian.Controllers
 
             try
             {
-                string url = "https://api.qidian.qq.com/cgi-bin/token?grant_type=client_credential&appid=202010648&secret=GRO7brrdHhtrb9Te";
-                string tokenJson = await httpHelper_.HttpGetAsync(url, null);
-                Dictionary<string, string> tokenDic = JsonConvert.DeserializeObject<Dictionary<string, string>>(tokenJson);
-                string token = tokenDic["access_token"];
+                string token = await getToken();
 
                 if (String.IsNullOrEmpty(token))
                 {
@@ -151,7 +148,7 @@ namespace QQQidian.Controllers
             }
             catch (Exception e)
             {
-                log_.LogError(e,"Exception occur", null);
+                log_.LogError(e, "Exception occur", null);
                 ro.Result = "Error";
                 ro.ErrorMessage = "Fail to get token.Due to" + e.Message;
                 return Ok(ro);
@@ -166,51 +163,54 @@ namespace QQQidian.Controllers
             return Ok(json_csv_account);
         }
 
-        //GetCusInfoSchedule
-        [HttpGet("cussync")]
-        public async Task<IActionResult> getCustomerInfoSchedule()
+        public async Task<string> getToken()
         {
-            log_.LogInformation("Enter getCustomerInfosync");
+            string url = "https://api.qidian.qq.com/cgi-bin/token?grant_type=client_credential&appid=202010648&secret=GRO7brrdHhtrb9Te";
+            string tokenJson = await httpHelper_.HttpGetAsync(url, null);
+            Dictionary<string, string> tokenDic = JsonConvert.DeserializeObject<Dictionary<string, string>>(tokenJson);
+            string token = tokenDic["access_token"];
+            return token;
+        }
+
+        public static bool flag = false;
+
+        [HttpGet("cusbg")]
+        public IActionResult getCustomerInfoBackground()
+        {
+
+            if (!flag)
+            {
+                flag = true;
+                Task.Run(() => getCustomerInfoBackgroundExecutor());
+                return Ok("后台任务已经启动,请耐心等待结果。");
+            }
+            else
+            {
+                return Ok("后台任务已经在运行中,请耐心等待结果。");
+            }
+        }
+
+
+
+        public async Task getCustomerInfoBackgroundExecutor()
+        {
+            log_.LogInformation("Enter getCustomerInfoExecutor");
             log_.LogInformation("using account is " + json_csv_account);
             Stopwatch stopwatch = Stopwatch.StartNew();
             ResponseObject ro = new ResponseObject();
             try
             {
-                string testFileName = String.Format("cusInfoJson_{0}", string.Format("{0:yyyyMMdd}", DateTime.Now));
-                string yesterdayFileName = String.Format("cusInfoJson_{0}", string.Format("{0:yyyyMMdd}", DateTime.Now.AddDays(-1)));
-                string baseDir = AppContext.BaseDirectory;
-                string CustomerInfosDirPath = Path.Combine(baseDir, "CustomerInfos");
-                DirectoryInfo CustomerInfosDir = new DirectoryInfo(CustomerInfosDirPath);
-                if (!Directory.Exists(CustomerInfosDirPath))
+                if (ifCusInfoCacheExists() != null)
                 {
-                    CustomerInfosDir = Directory.CreateDirectory(CustomerInfosDirPath);
+                    return;
                 }
-
-                FileInfo[] files = CustomerInfosDir.GetFiles().Where(f=>f.Name.StartsWith(testFileName)&&f.Name.EndsWith(".csv")).ToArray();
-                FileInfo[] yesterdayFiles = CustomerInfosDir.GetFiles().Where(f => f.Name.StartsWith(yesterdayFileName) && f.Name.EndsWith(".csv")).ToArray();
-
-                //remove yesterday files
-                foreach (FileInfo ff in yesterdayFiles)
-                {
-                    ff.Delete();
-                }
-
-                    if (files != null && files.Length > 0)
-                {
-                    IOrderedEnumerable<FileInfo> ioe = files.OrderByDescending(a=>a.LastWriteTimeUtc);
-                    FileInfo fi = ioe.FirstOrDefault();
-                    log_.LogInformation("End getCustomerInfos with cache file");
-                    return File(fi.OpenRead(), "application/csv", fi.Name);
-                }
-                
 
 
                 log_.LogInformation("Cache file of today not found.");
 
-                string url = "https://api.qidian.qq.com/cgi-bin/token?grant_type=client_credential&appid=202010648&secret=GRO7brrdHhtrb9Te";
-                string tokenJson = await httpHelper_.HttpGetAsync(url, null);
-                Dictionary<string, string> tokenDic = JsonConvert.DeserializeObject<Dictionary<string, string>>(tokenJson);
-                string token = tokenDic["access_token"];
+                string token = await getToken();
+
+                DateTime dtToken = DateTime.Now;
 
                 log_.LogInformation(String.Format("Token is {0}", token));
 
@@ -228,7 +228,265 @@ namespace QQQidian.Controllers
                     int totalCount = 0;
                     do
                     {
-                        url = "https://api.qidian.qq.com/cgi-bin/cust/cust_info/getCustList?next_custid=" + nextCusId + "&access_token=" + token;
+                        string url = "https://api.qidian.qq.com/cgi-bin/cust/cust_info/getCustList?next_custid=" + nextCusId + "&access_token=" + token;
+                        string customersJson = await httpHelper_.HttpGetAsync(url, null);
+                        var CustomersResultDefinition = new { total = "", count = "", data = new { cust_id = new List<string>() }, next_custid = "" };
+                        var retJsonObject = JsonConvert.DeserializeAnonymousType(customersJson, CustomersResultDefinition);
+
+
+                        if (retJsonObject == null || retJsonObject.data == null || retJsonObject.data.cust_id == null)
+                        {
+                            ro.Result = "Error";
+                            ro.ErrorMessage = "CustomersResultDefinition == null || CustomersResultDefinition.data || CustomersResultDefinition.data.cust_id == null";
+                            ro.ResultObject = retJsonObject;
+                            log_.LogError(ro.ErrorMessage + "Executor stop.");
+                            flag = false;
+                            return;
+                        }
+
+                        nextCusId = retJsonObject.next_custid;
+                        int tempCount = 0;
+                        if (!int.TryParse(retJsonObject.count, out tempCount))
+                        {
+                            ro.Result = "Error";
+                            ro.ErrorMessage = "Total Count is not a integer.";
+                            log_.LogError(ro.ErrorMessage + "Executor stop.");
+                            flag = false;
+                            return;
+
+                        }
+
+                        totalCount = totalCount + tempCount;
+
+                        tempIds = retJsonObject.data.cust_id;
+                        customerIds.AddRange(tempIds);
+                    } while (!String.IsNullOrEmpty(nextCusId));
+
+                    if (totalCount != customerIds.Count)
+                    {
+                        ro.Result = "Error";
+                        ro.ErrorMessage = "Total Count not tally with the records count in the result object.";
+                        log_.LogError(ro.ErrorMessage + "Executor stop.");
+                        flag = false;
+                        return;
+                    }
+
+                    log_.LogInformation("Total Customer Count=" + customerIds.Count);
+
+                    var tasks = new List<Task<JObject>>();
+                    ConcurrentQueue<JObject> returnArray = new ConcurrentQueue<JObject>();
+                    LimitedConcurrencyLevelTaskScheduler ts = new LimitedConcurrencyLevelTaskScheduler(1);
+                    TaskFactory factory = new TaskFactory(ts);
+                    log_.LogDebug("Before get customers info reccurlly.");
+                    int idx = 0;
+                    int limitCount = 500;
+                    //customerIds = customerIds.GetRange(0, 100);
+                    foreach (string cusId in customerIds)
+                    {
+                        idx++;
+                        log_.LogDebug(String.Format("Start task {0}.CusId = {1}", idx, cusId));
+                        tasks.Add(getCustomerRunner(cusId, token));
+
+                        if (idx % limitCount == 0)
+                        {
+                            log_.LogInformation("到达阈值，现在的idx=" + idx);
+                            //等待该批任务全部完成，然后进入下一批
+
+                            foreach (Task<JObject> t in tasks)
+                            {
+                                var ret = await t;
+                                returnArray.Enqueue(ret);
+                            }
+
+                            //清空该批已经完成的task
+                            tasks.Clear();
+                            //休息6秒
+                            Thread.Sleep(6000);
+                        }
+                    }
+
+                    foreach (Task<JObject> t in tasks)
+                    {
+                        var ret = await t;
+                        returnArray.Enqueue(ret);
+                    }
+
+                    await Task.WhenAll(tasks).ContinueWith(p =>
+                    {
+                        log_.LogDebug("After get customers info reccurlly");
+                    }, TaskContinuationOptions.OnlyOnRanToCompletion);
+
+                    string email = json_csv_account;
+
+                    string jsoncsvurl = "https://json-csv.com/api/getcsv";
+
+                    var options = new[]
+                    {
+                                 new KeyValuePair<string, string>("email", email),
+                                 new KeyValuePair<string, string>("json", JsonConvert.SerializeObject(returnArray))
+                    };
+
+
+
+                    var encodedItems = options.Select(i => WebUtility.UrlEncode(i.Key) + "=" + WebUtility.UrlEncode(i.Value));
+
+                    //处理超长url的workround
+                    var encodedContent = new StringContent(String.Join("&", encodedItems), null, "application/x-www-form-urlencoded");
+                    try
+                    {
+                        string csvContent = await httpHelper_.HttpPostAsync(jsoncsvurl, encodedContent, null, 600);
+
+                        if (csvContent.IndexOf("A problem occured") != -1)
+                        {
+                            ro.ErrorMessage = csvContent;
+                            ro.Result = "Error";
+                            log_.LogInformation("Error Occur when convert to csv." + csvContent);
+                        }
+                        else
+                        {
+                            System.Text.Encoding encoding = new System.Text.UTF8Encoding(true);
+                            byte[] byteArray = encoding.GetBytes(csvContent);
+                            string fileName = String.Format("cusInfoJson_{0}.csv", string.Format("{0:yyyyMMddHHmmss}", DateTime.Now));
+                            fileName = HttpUtility.UrlEncode(fileName, Encoding.GetEncoding("UTF-8"));
+                            var data = Encoding.UTF8.GetPreamble().Concat(byteArray).ToArray();
+
+                            cacheTheCusInfoFile(data, fileName);
+
+                            log_.LogInformation("End getCustomerInfosBackgroundExecutor");
+                            flag = false;
+                            return;
+                        }
+                    }
+                    catch (Exception csvE)
+                    {
+                        log_.LogError(csvE, "encounter exception when convert JSON.", null);
+                    }
+
+
+                }
+            }
+            catch (TaskCanceledException te)
+            {
+                ro.ErrorMessage = te.Message;
+                ro.Result = "Error";
+                log_.LogError(te, "TaskCanceledException Occure.", null);
+            }
+            catch (Exception e)
+            {
+                ro.ErrorMessage = e.Message;
+                ro.Result = "Error";
+                log_.LogError(e, "Exception Occure.", null);
+            }
+            stopwatch.Stop();
+            log_.LogInformation("Leave getCustomerInfosBackgroundExecutor.TimeElaps=" + stopwatch.Elapsed.TotalSeconds);
+            flag = false;
+            return;
+        }
+
+        private FileStreamResult ifCusInfoCacheExists()
+        {
+            string testFileName = String.Format("cusInfoJson_{0}", string.Format("{0:yyyyMMdd}", DateTime.Now));
+            string yesterdayFileName = String.Format("cusInfoJson_{0}", string.Format("{0:yyyyMMdd}", DateTime.Now.AddDays(-1)));
+            string baseDir = AppContext.BaseDirectory;
+            string CustomerInfosDirPath = Path.Combine(baseDir, "CustomerInfos");
+            DirectoryInfo CustomerInfosDir = new DirectoryInfo(CustomerInfosDirPath);
+            if (!Directory.Exists(CustomerInfosDirPath))
+            {
+                CustomerInfosDir = Directory.CreateDirectory(CustomerInfosDirPath);
+            }
+
+            FileInfo[] files = CustomerInfosDir.GetFiles().Where(f => f.Name.StartsWith(testFileName) && f.Name.EndsWith(".csv")).ToArray();
+            FileInfo[] yesterdayFiles = CustomerInfosDir.GetFiles().Where(f => f.Name.StartsWith(yesterdayFileName) && f.Name.EndsWith(".csv")).ToArray();
+
+            //remove yesterday files
+            foreach (FileInfo ff in yesterdayFiles)
+            {
+                ff.Delete();
+            }
+
+            if (files != null && files.Length > 0)
+            {
+                IOrderedEnumerable<FileInfo> ioe = files.OrderByDescending(a => a.LastWriteTimeUtc);
+                FileInfo fi = ioe.FirstOrDefault();
+                log_.LogInformation("End ifCusInfoCacheExists with cache file");
+                return File(fi.OpenRead(), "application/csv", fi.Name);
+            }
+            else
+            {
+                return null;
+            }
+        }
+
+        private void cacheTheCusInfoFile(byte[] data, string fileName)
+        {
+            log_.LogInformation("Enter cache cusinfo file" + fileName);
+            string baseDir = AppContext.BaseDirectory;
+            string CustomerInfosDirPath = Path.Combine(baseDir, "CustomerInfos");
+            //cache the file
+            FileStream fs = null;
+            try
+            {
+                string fullLocalFileName = Path.Combine(CustomerInfosDirPath, fileName);
+                FileInfo localFile = new FileInfo(fullLocalFileName);
+                fs = localFile.OpenWrite();
+                fs.Write(data, 0, data.Length);
+                fs.Flush();
+
+            }
+            catch (Exception fe)
+            {
+                log_.LogWarning("Write cache file encounter error", fe);
+            }
+            finally
+            {
+                if (fs != null)
+                {
+                    fs.Close();
+                }
+            }
+            log_.LogInformation("End cache cusinfo file" + fileName);
+        }
+
+        //GetCusInfoSynchronize
+        [HttpGet("cussync")]
+        public async Task<IActionResult> getCustomerInfoSync()
+        {
+            log_.LogInformation("Enter getCustomerInfosync");
+            log_.LogInformation("using account is " + json_csv_account);
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            ResponseObject ro = new ResponseObject();
+            try
+            {
+
+                var cacheFile = ifCusInfoCacheExists();
+                if (cacheFile != null)
+                {
+                    return cacheFile;
+                }
+
+                log_.LogInformation("Cache file of today not found.");
+
+                string token = await getToken();
+
+                DateTime dtToken = DateTime.Now;
+
+                log_.LogInformation(String.Format("Token is {0}", token));
+
+                if (String.IsNullOrEmpty(token))
+                {
+                    ro.Result = "Error";
+                    ro.ErrorMessage = "token is null or empty.";
+                }
+                else
+                {
+                    //get All cusomterId 
+                    List<string> customerIds = new List<string>();
+                    List<string> tempIds = new List<string>();
+                    string nextCusId = "";
+                    int totalCount = 0;
+                    do
+                    {
+                        string url = "https://api.qidian.qq.com/cgi-bin/cust/cust_info/getCustList?next_custid=" + nextCusId + "&access_token=" + token;
                         string customersJson = await httpHelper_.HttpGetAsync(url, null);
                         var CustomersResultDefinition = new { total = "", count = "", data = new { cust_id = new List<string>() }, next_custid = "" };
                         var retJsonObject = JsonConvert.DeserializeAnonymousType(customersJson, CustomersResultDefinition);
@@ -272,7 +530,14 @@ namespace QQQidian.Controllers
                     foreach (string cusId in customerIds)
                     {
                         idx++;
+                        DateTime now = DateTime.Now;
+                        TimeSpan ts = now - dtToken;
                         log_.LogDebug(String.Format("Start task {0}.CusId = {1}", idx, cusId));
+                        if (ts.TotalSeconds > 5400)
+                        {
+                            token = await getToken();
+                            dtToken = now;
+                        }
                         var r = await getCustomerRunner(cusId, token);
                         returnArray.Enqueue(r);
                         //if (retJson.Result != null)
@@ -316,27 +581,7 @@ namespace QQQidian.Controllers
                             var data = Encoding.UTF8.GetPreamble().Concat(byteArray).ToArray();
 
                             //cache the file
-                            FileStream fs = null;
-                            try
-                            {
-                                string fullLocalFileName = Path.Combine(CustomerInfosDirPath, fileName);
-                                FileInfo localFile = new FileInfo(fullLocalFileName);
-                                fs = localFile.OpenWrite();
-                                fs.Write(data, 0, data.Length);
-                                fs.Flush();
-                                
-                            }
-                            catch(Exception fe)
-                            {
-                                log_.LogWarning("Write cache file encounter error",fe);
-                            }
-                            finally
-                            {
-                                if (fs != null)
-                                {
-                                    fs.Close();
-                                }
-                            }
+                            cacheTheCusInfoFile(data, fileName);
 
 
                             log_.LogInformation("End getCustomerInfos");
@@ -349,13 +594,13 @@ namespace QQQidian.Controllers
             {
                 ro.ErrorMessage = te.Message;
                 ro.Result = "Error";
-                log_.LogError(te,"TaskCanceledException Occure.", null);
+                log_.LogError(te, "TaskCanceledException Occure.", null);
             }
             catch (Exception e)
             {
                 ro.ErrorMessage = e.Message;
                 ro.Result = "Error";
-                log_.LogError(e,"Exception Occure.", null);
+                log_.LogError(e, "Exception Occure.", null);
             }
             stopwatch.Stop();
             log_.LogInformation("Leave getCustomerInfos.TimeElaps=" + stopwatch.Elapsed.TotalSeconds);
@@ -364,7 +609,7 @@ namespace QQQidian.Controllers
 
         //GetCusInfo
         [HttpGet("cus")]
-        public async Task<IActionResult> getCustomerInfos()
+        public async Task<IActionResult> getCustomerInfosAsync()
         {
             log_.LogInformation("Enter getCustomerInfos");
             log_.LogInformation("using account is " + json_csv_account);
@@ -372,10 +617,14 @@ namespace QQQidian.Controllers
             ResponseObject ro = new ResponseObject();
             try
             {
-                string url = "https://api.qidian.qq.com/cgi-bin/token?grant_type=client_credential&appid=202010648&secret=GRO7brrdHhtrb9Te";
-                string tokenJson = await httpHelper_.HttpGetAsync(url, null);
-                Dictionary<string, string> tokenDic = JsonConvert.DeserializeObject<Dictionary<string, string>>(tokenJson);
-                string token = tokenDic["access_token"];
+                var cacheFile = ifCusInfoCacheExists();
+                if (cacheFile != null)
+                {
+                    return cacheFile;
+                }
+
+                log_.LogInformation("Cache file of today not found.");
+                string token = await getToken();
 
                 if (String.IsNullOrEmpty(token))
                 {
@@ -391,7 +640,7 @@ namespace QQQidian.Controllers
                     int totalCount = 0;
                     do
                     {
-                        url = "https://api.qidian.qq.com/cgi-bin/cust/cust_info/getCustList?next_custid=" + nextCusId + "&access_token=" + token;
+                        string url = "https://api.qidian.qq.com/cgi-bin/cust/cust_info/getCustList?next_custid=" + nextCusId + "&access_token=" + token;
                         string customersJson = await httpHelper_.HttpGetAsync(url, null);
                         var CustomersResultDefinition = new { total = "", count = "", data = new { cust_id = new List<string>() }, next_custid = "" };
                         var retJsonObject = JsonConvert.DeserializeAnonymousType(customersJson, CustomersResultDefinition);
@@ -407,7 +656,7 @@ namespace QQQidian.Controllers
 
                         nextCusId = retJsonObject.next_custid;
                         int tempCount = 0;
-                        if(!int.TryParse(retJsonObject.count,out tempCount))
+                        if (!int.TryParse(retJsonObject.count, out tempCount))
                         {
                             ro.Result = "Error";
                             ro.ErrorMessage = "Total Count is not a integer.";
@@ -420,7 +669,7 @@ namespace QQQidian.Controllers
                         customerIds.AddRange(tempIds);
                     } while (!String.IsNullOrEmpty(nextCusId));
 
-                    if(totalCount!= customerIds.Count)
+                    if (totalCount != customerIds.Count)
                     {
                         ro.Result = "Error";
                         ro.ErrorMessage = "Total Count not tally with the records count in the result object.";
@@ -428,84 +677,102 @@ namespace QQQidian.Controllers
                     }
 
                     log_.LogInformation("Total Customer Count=" + customerIds.Count);
-                    
+
                     ConcurrentQueue<JObject> returnArray = new ConcurrentQueue<JObject>();
                     log_.LogDebug("Before get customers info reccurlly.");
                     var tasks = new List<Task>();
                     LimitedConcurrencyLevelTaskScheduler ts = new LimitedConcurrencyLevelTaskScheduler(500);
                     TaskFactory factory = new TaskFactory(ts);
                     int idx = 0;
+                    int limitCount = 500;
+                    //customerIds = customerIds.GetRange(0, 100);
                     foreach (string cusId in customerIds)
                     {
                         idx++;
-                        log_.LogDebug(String.Format("Start task {0}.CusId = {1}",idx,cusId));
-                        tasks.Add(Task.Run(() => {
-                            var r = getCustomerRunner(cusId, token);
-                            returnArray.Enqueue(r.Result);
-                        }));
-                        //if (retJson.Result != null)
-                        //{
-                        //    returnArray.Add(retJson.Result);
-                        //}
+                        log_.LogDebug(String.Format("Start task {0}.CusId = {1}", idx, cusId));
+                        tasks.Add(getCustomerRunner(cusId, token));
+
+                        if (idx % limitCount == 0)
+                        {
+                            log_.LogInformation("到达阈值，现在的idx=" + idx);
+                            //等待该批任务全部完成，然后进入下一批
+
+                            foreach (Task<JObject> t in tasks)
+                            {
+                                var ret = await t;
+                                returnArray.Enqueue(ret);
+                            }
+
+                            //清空该批已经完成的task
+                            tasks.Clear();
+                            //休息6秒
+                            Thread.Sleep(6000);
+                        }
+                    }
+
+                    foreach (Task<JObject> t in tasks)
+                    {
+                        var ret = await t;
+                        returnArray.Enqueue(ret);
                     }
 
                     await Task.WhenAll(tasks).ContinueWith(p =>
-                     {
-                         log_.LogDebug("After get customers info reccurlly");
-                     }, TaskContinuationOptions.OnlyOnRanToCompletion);
-
+                    {
+                        log_.LogDebug("After get customers info reccurlly");
+                    }, TaskContinuationOptions.OnlyOnRanToCompletion);
 
                     string email = json_csv_account;
-                    using (var client = new HttpClient())
-                    {
-                        string jsoncsvurl = "https://json-csv.com/api/getcsv";
 
-                        var options = new[]
-                        {
+                    string jsoncsvurl = "https://json-csv.com/api/getcsv";
+
+                    var options = new[]
+                    {
                                  new KeyValuePair<string, string>("email", email),
                                  new KeyValuePair<string, string>("json", JsonConvert.SerializeObject(returnArray))
                              };
 
 
 
-                        var encodedItems = options.Select(i => WebUtility.UrlEncode(i.Key) + "=" + WebUtility.UrlEncode(i.Value));
+                    var encodedItems = options.Select(i => WebUtility.UrlEncode(i.Key) + "=" + WebUtility.UrlEncode(i.Value));
 
-                        //处理超长url的workround
-                        var encodedContent = new StringContent(String.Join("&", encodedItems), null, "application/x-www-form-urlencoded");
+                    //处理超长url的workround
+                    var encodedContent = new StringContent(String.Join("&", encodedItems), null, "application/x-www-form-urlencoded");
 
-                        var result = client.PostAsync(jsoncsvurl, encodedContent).Result;
-                        string csvContent = result.Content.ReadAsStringAsync().Result;
+                    string csvContent = await httpHelper_.HttpPostAsync(jsoncsvurl, encodedContent, null, 600);
 
-                        if (csvContent.IndexOf("A problem occured") != -1)
-                        {
-                            ro.ErrorMessage = csvContent;
-                            ro.Result = "Error";
-                        }
-                        else
-                        {
-                            System.Text.Encoding encoding = new System.Text.UTF8Encoding(true);
-                            byte[] byteArray = encoding.GetBytes(csvContent);
-                            string fileName = String.Format("cusInfoJson_{0}.csv", string.Format("{0:yyyyMMddHHmmss}", DateTime.Now));
-                            fileName = HttpUtility.UrlEncode(fileName, Encoding.GetEncoding("UTF-8"));
-                            var data = Encoding.UTF8.GetPreamble().Concat(byteArray).ToArray();
-
-                            log_.LogInformation("End getCustomerInfos");
-                            return File(data, "application/csv", fileName);
-                        }
+                    if (csvContent.IndexOf("A problem occured") != -1)
+                    {
+                        ro.ErrorMessage = csvContent;
+                        ro.Result = "Error";
                     }
+                    else
+                    {
+                        System.Text.Encoding encoding = new System.Text.UTF8Encoding(true);
+                        byte[] byteArray = encoding.GetBytes(csvContent);
+                        string fileName = String.Format("cusInfoJson_{0}.csv", string.Format("{0:yyyyMMddHHmmss}", DateTime.Now));
+                        fileName = HttpUtility.UrlEncode(fileName, Encoding.GetEncoding("UTF-8"));
+                        var data = Encoding.UTF8.GetPreamble().Concat(byteArray).ToArray();
+
+                        //cache the result file
+                        cacheTheCusInfoFile(data, fileName);
+
+                        log_.LogInformation("End getCustomerInfos");
+                        return File(data, "application/csv", fileName);
+                    }
+
                 }
             }
             catch (TaskCanceledException te)
             {
                 ro.ErrorMessage = te.Message;
                 ro.Result = "Error";
-                log_.LogError(te,"TaskCanceledException Occure.", null);
+                log_.LogError(te, "TaskCanceledException Occure.", null);
             }
             catch (Exception e)
             {
                 ro.ErrorMessage = e.Message;
                 ro.Result = "Error";
-                log_.LogError(e,"Exception Occure.", null);
+                log_.LogError(e, "Exception Occure.", null);
             }
             stopwatch.Stop();
             log_.LogInformation("Leave getCustomerInfos.TimeElaps=" + stopwatch.Elapsed.TotalSeconds);
@@ -514,7 +781,7 @@ namespace QQQidian.Controllers
 
         //
         [HttpGet("test")]
-        public async Task<IActionResult> Json2Csv(string jsonString)
+        public IActionResult Json2Csv(string jsonString)
         {
             string csvContent = "";
             jsonString = @"{
@@ -619,15 +886,15 @@ namespace QQQidian.Controllers
 
             for (int i = 0; i < maximunRetryCount; i++)
             {
-
+                string resultJson = "";
                 try
                 {
-                    var resultJson = await httpHelper_.HttpPostAsync(url, JsonConvert.SerializeObject(jo), "application/json", 600, null);
+                    resultJson = await httpHelper_.HttpPostAsync(url, JsonConvert.SerializeObject(jo), "application/json", 600, null);
                     jObject = JsonConvert.DeserializeObject<JObject>(resultJson);
                     JToken value = "";
                     if (jObject.TryGetValue("errcode", out value))
                     {
-                        log_.LogWarning(String.Format("Fail to get the Info of this Customer.ResultJson is {0}.CustomerId = {1}.Retry Count = {2}", resultJson,CustomerId, i));
+                        log_.LogWarning(String.Format("Fail to get the Info of this Customer.ResultJson is {0}.CustomerId = {1}.Retry Count = {2}", resultJson, CustomerId, i));
                         jObject = new JObject();
                         jObject.Add("cust_id", CustomerId);
                     }
@@ -635,7 +902,7 @@ namespace QQQidian.Controllers
                     {
                         break;
                     }
-                    if (jObject == null||jObject.GetValue("cust_id")==null)
+                    if (jObject == null || jObject.GetValue("cust_id") == null)
                     {
                         log_.LogWarning(String.Format("The result message is null.CustomerId = {0}", CustomerId));
                     }
@@ -647,11 +914,11 @@ namespace QQQidian.Controllers
                 }
                 catch (Exception e)
                 {
-                    log_.LogError("Get CustomerInfo failed.CustomerId=" + CustomerId, e);
+                    log_.LogError(e, "Get CustomerInfo failed.CustomerId=" + CustomerId + " resultJson = " + resultJson, null);
                 }
             }
 
-            log_.LogDebug(String.Format("End getCustomerRunner.CustomerId = {0}", CustomerId));
+            log_.LogInformation(String.Format("End getCustomerRunner.CustomerId = {0}", CustomerId));
             return jObject;
         }
 
@@ -793,13 +1060,13 @@ namespace QQQidian.Controllers
             {
                 ro.ErrorMessage = te.Message;
                 ro.Result = "Error";
-                log_.LogError(te,"TaskCanceledException Occure.", null);
+                log_.LogError(te, "TaskCanceledException Occure.", null);
             }
             catch (Exception e)
             {
                 ro.ErrorMessage = e.Message;
                 ro.Result = "Error";
-                log_.LogError(e,"Exception Occure.", null);
+                log_.LogError(e, "Exception Occure.", null);
             }
 
             log_.LogInformation("Leave getOwnerInfos");
@@ -814,7 +1081,7 @@ namespace QQQidian.Controllers
             Thread.Sleep(randomSleepTime * 500);
             log_.LogDebug(String.Format("Start getOwnerRunner.OwnerId = {0}", OwnerID));
             string urlbase = "https://api.qidian.qq.com/cgi-bin/cust/cust_info/getSingCustBusiInfo?cust_id={0}&access_token={1}";
-            string url = String.Format(urlbase, OwnerID,token);
+            string url = String.Format(urlbase, OwnerID, token);
 
             int maximunRetryCount = 1;
             JObject jObject = null;
@@ -823,7 +1090,7 @@ namespace QQQidian.Controllers
             {
                 try
                 {
-                    var resultJson = await httpHelper_.HttpPostAsync(url, null, "application/json", 600, null);
+                    var resultJson = await httpHelper_.HttpPostAsync(url, "", "application/json", 600, null);
                     jObject = JsonConvert.DeserializeObject<JObject>(resultJson);
                     JToken value = "";
                     if (jObject.TryGetValue("errcode", out value))
@@ -843,7 +1110,7 @@ namespace QQQidian.Controllers
                     log_.LogError("Get OwnerInfo failed.OwnerId=" + OwnerID, e);
                 }
             }
-            
+
             log_.LogDebug(String.Format("End getOwnerRunner.OwnerId = {0}", OwnerID));
             return jObject;
         }

@@ -55,7 +55,7 @@ namespace QQQidian
             }
             
 
-            app.UseHttpsRedirection();
+            //app.UseHttpsRedirection();
             app.UseStaticFiles();
             app.UseCookiePolicy();
 

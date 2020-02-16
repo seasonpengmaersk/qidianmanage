@@ -43,7 +43,7 @@ namespace QQQidian
                 logging.ClearProviders();
                 logging.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Trace);
             })
-            //.UseUrls("http://*:5000")
+            .UseUrls("http://*:5000;https://*:5001")
             .UseNLog();  // NLog: setup NLog for Dependency injection
     }
 }

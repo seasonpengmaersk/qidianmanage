@@ -22,6 +22,7 @@ namespace ReadExcelPOC.Util
         {
             string HttpPost(string url, string postData = null, string contentType = null, int timeOut = 30, Dictionary<string, string> headers = null);
             Task<string> HttpPostAsync(string url, string postData = null, string contentType = null, int timeOut = 30, Dictionary<string, string> headers = null);
+            Task<string> HttpPostAsync(string url, StringContent postData = null, string contentType = null, int timeOut = 30, Dictionary<string, string> headers = null);
             string HttpGet(string url, Dictionary<string, string> headers = null);
             Task<string> HttpGetAsync(string url, Dictionary<string, string> headers = null);
         }
@@ -136,6 +137,11 @@ namespace ReadExcelPOC.Util
                 }
 
             }
+
+            public Task<string> HttpPostAsync(string url, StringContent postData = null, string contentType = null, int timeOut = 30, Dictionary<string, string> headers = null)
+            {
+                throw new NotImplementedException();
+            }
         }
 
 
@@ -173,8 +179,9 @@ namespace ReadExcelPOC.Util
                 {
                     if (contentType != null)
                         httpContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
-
-                    HttpResponseMessage response = client.PostAsync(url, httpContent).Result;
+                    var ret = client.PostAsync(url, httpContent);
+                    ret.Wait();
+                    HttpResponseMessage response = ret.Result;
                     return response.Content.ReadAsStringAsync().Result;
                 }
 
@@ -248,6 +255,25 @@ namespace ReadExcelPOC.Util
                 HttpResponseMessage response = await client.GetAsync(url);
                 return await response.Content.ReadAsStringAsync();
 
+            }
+
+            public async Task<string> HttpPostAsync(string url, StringContent postData = null, string contentType = null, int timeOut = 30, Dictionary<string, string> headers = null)
+            {
+                HttpClient client = _httpClientFactory.CreateClient();
+                client.Timeout = new TimeSpan(0, 0, timeOut);
+                if (headers != null)
+                {
+                    foreach (var header in headers)
+                        client.DefaultRequestHeaders.Add(header.Key, header.Value);
+                }
+                using (HttpContent httpContent = postData)
+                {
+                    if (contentType != null)
+                        httpContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
+
+                    HttpResponseMessage response = await client.PostAsync(url, httpContent);
+                    return await response.Content.ReadAsStringAsync();
+                }
             }
         }
     }
