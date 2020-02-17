@@ -418,8 +418,8 @@ namespace QQQidian.Controllers
 
         private FileStreamResult ifOwnerInfoCacheExists()
         {
-            string testFileName = String.Format("cusInfoJson_{0}", string.Format("{0:yyyyMMdd}", DateTime.Now));
-            string yesterdayFileName = String.Format("cusInfoJson_{0}", string.Format("{0:yyyyMMdd}", DateTime.Now.AddDays(-1)));
+            string testFileName = String.Format("ownerInfoJson_{0}", string.Format("{0:yyyyMMdd}", DateTime.Now));
+            string yesterdayFileName = String.Format("ownerInfoJson_{0}", string.Format("{0:yyyyMMdd}", DateTime.Now.AddDays(-1)));
             string baseDir = AppContext.BaseDirectory;
             string OwnerInfosDirPath = Path.Combine(baseDir, "OwnerInfos");
             DirectoryInfo OwnerInfosDir = new DirectoryInfo(OwnerInfosDirPath);
