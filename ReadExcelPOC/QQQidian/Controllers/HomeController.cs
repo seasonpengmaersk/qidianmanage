@@ -416,6 +416,40 @@ namespace QQQidian.Controllers
             }
         }
 
+        private FileStreamResult ifOwnerInfoCacheExists()
+        {
+            string testFileName = String.Format("cusInfoJson_{0}", string.Format("{0:yyyyMMdd}", DateTime.Now));
+            string yesterdayFileName = String.Format("cusInfoJson_{0}", string.Format("{0:yyyyMMdd}", DateTime.Now.AddDays(-1)));
+            string baseDir = AppContext.BaseDirectory;
+            string OwnerInfosDirPath = Path.Combine(baseDir, "OwnerInfos");
+            DirectoryInfo OwnerInfosDir = new DirectoryInfo(OwnerInfosDirPath);
+            if (!Directory.Exists(OwnerInfosDirPath))
+            {
+                OwnerInfosDir = Directory.CreateDirectory(OwnerInfosDirPath);
+            }
+
+            FileInfo[] files = OwnerInfosDir.GetFiles().Where(f => f.Name.StartsWith(testFileName) && f.Name.EndsWith(".csv")).ToArray();
+            FileInfo[] yesterdayFiles = OwnerInfosDir.GetFiles().Where(f => f.Name.StartsWith(yesterdayFileName) && f.Name.EndsWith(".csv")).ToArray();
+
+            //remove yesterday files
+            foreach (FileInfo ff in yesterdayFiles)
+            {
+                ff.Delete();
+            }
+
+            if (files != null && files.Length > 0)
+            {
+                IOrderedEnumerable<FileInfo> ioe = files.OrderByDescending(a => a.LastWriteTimeUtc);
+                FileInfo fi = ioe.FirstOrDefault();
+                log_.LogInformation("End ifCusInfoCacheExists with cache file");
+                return File(fi.OpenRead(), "application/csv", fi.Name);
+            }
+            else
+            {
+                return null;
+            }
+        }
+
         private void cacheTheCusInfoFile(byte[] data, string fileName)
         {
             log_.LogInformation("Enter cache cusinfo file" + fileName);
@@ -444,6 +478,36 @@ namespace QQQidian.Controllers
                 }
             }
             log_.LogInformation("End cache cusinfo file" + fileName);
+        }
+
+        private void cacheTheOwnerInfoFile(byte[] data, string fileName)
+        {
+            log_.LogInformation("Enter cache ownerinfo file" + fileName);
+            string baseDir = AppContext.BaseDirectory;
+            string ownerInfosDirPath = Path.Combine(baseDir, "OwnerInfos");
+            //cache the file
+            FileStream fs = null;
+            try
+            {
+                string fullLocalFileName = Path.Combine(ownerInfosDirPath, fileName);
+                FileInfo localFile = new FileInfo(fullLocalFileName);
+                fs = localFile.OpenWrite();
+                fs.Write(data, 0, data.Length);
+                fs.Flush();
+
+            }
+            catch (Exception fe)
+            {
+                log_.LogWarning("Write owner cache file encounter error", fe);
+            }
+            finally
+            {
+                if (fs != null)
+                {
+                    fs.Close();
+                }
+            }
+            log_.LogInformation("End owner cache cusinfo file" + fileName);
         }
 
         //GetCusInfoSynchronize
@@ -930,10 +994,12 @@ namespace QQQidian.Controllers
             ResponseObject ro = new ResponseObject();
             try
             {
-                string url = "https://api.qidian.qq.com/cgi-bin/token?grant_type=client_credential&appid=202010648&secret=GRO7brrdHhtrb9Te";
-                string tokenJson = await httpHelper_.HttpGetAsync(url, null);
-                Dictionary<string, string> tokenDic = JsonConvert.DeserializeObject<Dictionary<string, string>>(tokenJson);
-                string token = tokenDic["access_token"];
+                var cacheFile = ifOwnerInfoCacheExists();
+                if (cacheFile != null)
+                {
+                    return cacheFile;
+                }
+                string token = await getToken();
 
                 if (String.IsNullOrEmpty(token))
                 {
@@ -949,7 +1015,7 @@ namespace QQQidian.Controllers
                     do
                     {
                         //get All cusomterId 
-                        url = "https://api.qidian.qq.com/cgi-bin/cust/cust_info/getCustList?next_custid=" + nextCusId + "&access_token=" + token;
+                        string url = "https://api.qidian.qq.com/cgi-bin/cust/cust_info/getCustList?next_custid=" + nextCusId + "&access_token=" + token;
                         string customersJson = await httpHelper_.HttpGetAsync(url, null);
                         var CustomersResultDefinition = new { total = "", count = "", data = new { cust_id = new List<string>() }, next_custid = "" };
                         var retJsonObject = JsonConvert.DeserializeAnonymousType(customersJson, CustomersResultDefinition);
@@ -990,6 +1056,9 @@ namespace QQQidian.Controllers
                     int idx = 0;
                     int limitCount = 500;
                     //customerIds = customerIds.GetRange(0, 100);
+
+                    log_.LogInformation(String.Format("Total customer count is {0}",customerIds.Count));
+
                     foreach (string cusId in customerIds)
                     {
                         idx++;
@@ -1064,6 +1133,8 @@ namespace QQQidian.Controllers
                         fileName = HttpUtility.UrlEncode(fileName, Encoding.GetEncoding("UTF-8"));
                         var data = Encoding.UTF8.GetPreamble().Concat(byteArray).ToArray();
 
+                        cacheTheOwnerInfoFile(data,fileName);
+
                         log_.LogInformation("End getOwnerInfos");
                         return File(data, "application/csv", fileName);
                     }
@@ -1092,8 +1163,7 @@ namespace QQQidian.Controllers
         {
             Random r = new Random();
             int randomSleepTime = r.Next(1, 5);
-            Thread.Sleep(randomSleepTime * 500);
-            log_.LogDebug(String.Format("Start getOwnerRunner.OwnerId = {0}", OwnerID));
+            log_.LogInformation(String.Format("Start getOwnerRunner.OwnerId = {0}", OwnerID));
             string urlbase = "https://api.qidian.qq.com/cgi-bin/cust/cust_info/getSingCustBusiInfo?cust_id={0}&access_token={1}";
             string url = String.Format(urlbase, OwnerID, token);
 
@@ -1121,11 +1191,11 @@ namespace QQQidian.Controllers
                 }
                 catch (Exception e)
                 {
-                    log_.LogError("Get OwnerInfo failed.OwnerId=" + OwnerID, e);
+                    log_.LogError(e,"Get OwnerInfo failed.OwnerId=" + OwnerID, null);
                 }
             }
 
-            log_.LogDebug(String.Format("End getOwnerRunner.OwnerId = {0}", OwnerID));
+            log_.LogInformation(String.Format("End getOwnerRunner.OwnerId = {0}", OwnerID));
             return jObject;
         }
     }
