@@ -19,7 +19,6 @@ using Newtonsoft.Json.Linq;
 using QQQidian.Models;
 using ReadExcelPOC.Models;
 using ReadExcelPOC.Util.Common;
-using System.Threading.Tasks;
 using QQQidian.Util;
 using System.IO;
 
@@ -988,19 +987,37 @@ namespace QQQidian.Controllers
                     ConcurrentQueue<JObject> returnArray = new ConcurrentQueue<JObject>();
                     log_.LogDebug("Before get owner info reccurlly");
                     List<Task> tasks = new List<Task>();
+                    int idx = 0;
+                    int limitCount = 500;
+                    //customerIds = customerIds.GetRange(0, 100);
                     foreach (string cusId in customerIds)
                     {
-                        Thread.Sleep(100);
-                        tasks.Add(Task.Run(async () =>
+                        idx++;
+                        log_.LogDebug(String.Format("Start task {0}.CusId = {1}", idx, cusId));
+                        tasks.Add(getOwnerRunner(cusId, token));
+
+                        if (idx % limitCount == 0)
                         {
-                            var r = await getOwnerRunner(cusId, token);
-                            returnArray.Enqueue(r);
-                            return r;
-                        }));
-                        //if (retJson.Result != null)
-                        //{
-                        //    returnArray.Add(retJson.Result);
-                        //}
+                            log_.LogInformation("到达阈值，现在的idx=" + idx);
+                            //等待该批任务全部完成，然后进入下一批
+
+                            foreach (Task<JObject> t in tasks)
+                            {
+                                var ret = await t;
+                                returnArray.Enqueue(ret);
+                            }
+
+                            //清空该批已经完成的task
+                            tasks.Clear();
+                            //休息6秒
+                            Thread.Sleep(6000);
+                        }
+                    }
+
+                    foreach (Task<JObject> t in tasks)
+                    {
+                        var ret = await t;
+                        returnArray.Enqueue(ret);
                     }
 
                     await Task.WhenAll(tasks).ContinueWith(p =>
@@ -1010,51 +1027,48 @@ namespace QQQidian.Controllers
 
 
                     string email = json_csv_account;
-                    using (var client = new HttpClient())
+                    string jsoncsvurl = "https://json-csv.com/api/getcsv";
+
+                    //超长url 不能用FormUrlEncodedContent
+                    //var content = new FormUrlEncodedContent(new[]
+                    //{
+                    //    new KeyValuePair<string, string>("email", email),
+                    //    new KeyValuePair<string, string>("json", JsonConvert.SerializeObject(returnArray))
+                    //});
+
+                    var options = new[]
                     {
-                        string jsoncsvurl = "https://json-csv.com/api/getcsv";
-
-                        //超长url 不能用FormUrlEncodedContent
-                        //var content = new FormUrlEncodedContent(new[]
-                        //{
-                        //    new KeyValuePair<string, string>("email", email),
-                        //    new KeyValuePair<string, string>("json", JsonConvert.SerializeObject(returnArray))
-                        //});
-
-                        var options = new[]
-                        {
                                  new KeyValuePair<string, string>("email", email),
                                  new KeyValuePair<string, string>("json", JsonConvert.SerializeObject(returnArray))
                              };
 
 
 
-                        var encodedItems = options.Select(i => WebUtility.UrlEncode(i.Key) + "=" + WebUtility.UrlEncode(i.Value));
+                    var encodedItems = options.Select(i => WebUtility.UrlEncode(i.Key) + "=" + WebUtility.UrlEncode(i.Value));
 
-                        //处理超长url的workround
-                        var encodedContent = new StringContent(String.Join("&", encodedItems), null, "application/x-www-form-urlencoded");
+                    //处理超长url的workround
+                    var encodedContent = new StringContent(String.Join("&", encodedItems), null, "application/x-www-form-urlencoded");
 
-                        var result = client.PostAsync(jsoncsvurl, encodedContent).Result;
-                        string csvContent = result.Content.ReadAsStringAsync().Result;
+                    string csvContent = await httpHelper_.HttpPostAsync(jsoncsvurl, encodedContent, null, 600);
 
-                        if (csvContent.IndexOf("A problem occured") != -1)
-                        {
-                            ro.ErrorMessage = csvContent;
-                            ro.Result = "Error";
-                        }
-                        else
-                        {
-                            System.Text.Encoding encoding = new System.Text.UTF8Encoding(true);
-                            byte[] byteArray = encoding.GetBytes(csvContent);
-                            string fileName = String.Format("ownerInfoJson_{0}.csv", string.Format("{0:yyyyMMddHHmmss}", DateTime.Now));
-                            fileName = HttpUtility.UrlEncode(fileName, Encoding.GetEncoding("UTF-8"));
-                            var data = Encoding.UTF8.GetPreamble().Concat(byteArray).ToArray();
+                    if (csvContent.IndexOf("A problem occured") != -1)
+                    {
+                        ro.ErrorMessage = csvContent;
+                        ro.Result = "Error";
+                    }
+                    else
+                    {
+                        System.Text.Encoding encoding = new System.Text.UTF8Encoding(true);
+                        byte[] byteArray = encoding.GetBytes(csvContent);
+                        string fileName = String.Format("ownerInfoJson_{0}.csv", string.Format("{0:yyyyMMddHHmmss}", DateTime.Now));
+                        fileName = HttpUtility.UrlEncode(fileName, Encoding.GetEncoding("UTF-8"));
+                        var data = Encoding.UTF8.GetPreamble().Concat(byteArray).ToArray();
 
-                            log_.LogInformation("End getOwnerInfos");
-                            return File(data, "application/csv", fileName);
-                        }
+                        log_.LogInformation("End getOwnerInfos");
+                        return File(data, "application/csv", fileName);
                     }
                 }
+
             }
             catch (TaskCanceledException te)
             {
