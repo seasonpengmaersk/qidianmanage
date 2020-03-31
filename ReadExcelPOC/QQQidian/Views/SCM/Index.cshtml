@@ -1,0 +1,52 @@
+﻿@{
+    ViewData["Title"] = "SCM";
+}
+<script src="~/lib/jquery/dist/jquery.min.js"></script>
+<script src="~/lib/bootstrap/dist/js/bootstrap.min.js"></script>
+<link href="~/lib/bootstrap/dist/css/bootstrap.min.css"  rel="stylesheet"/>
+<script type="text/javascript">
+    $().ready(function () {
+        $('[data-toggle="datepicker"]').datepicker({
+            format: 'yyyy-mm-dd'
+        });
+
+    })
+
+
+</script>
+<div class="text-center">
+    <span class="border border-white"><h2 class="text-dark">Qidian SCM</h2></span>
+    <form method="post" action="@Url.Action("getStatistics", "SCM")">
+        <!--<input type="date" id="queryDatetime" name="queryDatetime" value='@ViewBag.defaultDT' />-->
+        <div class="input-group mb-3">
+
+            <div class="input-group-prepend">
+                <span class="input-group-text" id="basic-addon3">Please Choose A Date</span>
+            </div>
+            <input data-toggle="datepicker" id="queryDatetime" name="queryDatetime" value='@ViewBag.defaultDT' />
+            <input class="btn btn-outline-dark" type="submit" value="Go" />
+        </div>
+    </form>
+    <p class="font-weight-bold text-left text-dark">Or</p>
+    <form method="get" action="@Url.Action("getCustomerInfosAsync", "SCM")">
+        <div class="input-group mb-3">
+            <div class="input-group-prepend">
+                <span class="input-group-text" id="basic-addon4" hidden="hidden">Please Choose A Date</span>
+            </div>
+            <input class="btn btn-outline-dark" type="submit" id="btn_getcusInfo_submit" value="GetCusomterInfos" />
+        </div>
+
+    </form>
+
+    <p class="font-weight-bold text-left text-dark">Or</p>
+    <form method="get" action="@Url.Action("getOwnerInfos", "SCM")">
+        <div class="input-group mb-3">
+            <input class="btn btn-outline-dark" type="submit" id="btn_getOwnerInfo_submit" value="GetOwnerInfos" />
+        </div>
+
+    </form>
+
+
+
+
+</div>
